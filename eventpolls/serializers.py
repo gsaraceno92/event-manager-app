@@ -4,6 +4,8 @@ from .models import Event
 
 
 class EventSerializer(serializers.HyperlinkedModelSerializer):
+    owner = serializers.Field(source="owner.id")
+
     class Meta:
         model = Event
-        fields = ("name", "description", "start_date", "end_date")
+        fields = ("name", "description", "start_date", "end_date", "owner")

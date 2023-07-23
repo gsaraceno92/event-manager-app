@@ -5,6 +5,9 @@ from django.contrib.messages.storage import default_storage
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from rest_framework import viewsets
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .forms import NewUserForm
 from .models import Event
@@ -17,6 +20,7 @@ def index(request):
 
 def login(request):
     request._messages = default_storage(request)
+
     if request.method == "POST":
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
@@ -26,7 +30,7 @@ def login(request):
             if user is not None:
                 auth.login(request, user)
                 messages.info(request, f"You are now logged in as {username}.")
-                return redirect("index")
+                return redirect("/manager/api/events")
             else:
                 messages.error(request, "Invalid username or password.")
         else:
@@ -62,5 +66,14 @@ def logout(request):
 
 
 class EventsViewSet(viewsets.ModelViewSet):
+    permission_classes = (IsAuthenticated,)
+
     queryset = Event.objects.all().order_by("name")
     serializer_class = EventSerializer
+
+    def pre_save(self, obj):
+        obj.owner = self.request.user
+
+    def get(self, request):
+        content = {"message": "Hello, World!"}
+        return Response(content)

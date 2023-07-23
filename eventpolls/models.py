@@ -7,11 +7,7 @@ class Event(models.Model):
     description = models.CharField(max_length=200, blank=True)
     start_date = models.DateTimeField(null=False)
     end_date = models.DateTimeField(null=False)
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name="owner",
-    )
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.name
