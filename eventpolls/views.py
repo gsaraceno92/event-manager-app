@@ -1,16 +1,25 @@
+import logging
+from datetime import date, datetime
+
 import django.contrib.auth as auth
 from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm  # add this
 from django.contrib.messages.storage import default_storage
-from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from rest_framework import generics, permissions, response, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from .forms import NewUserForm
 from .models import Event, Subscription
 from .permissions import IsOwner, IsOwnerOrReadOnly
 from .serializers import EventSerializer, SubscriptionSerializer
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
+logger = logging.getLogger("views")
 
 
 def index(request):
@@ -102,18 +111,39 @@ class SubscriptionCreateView(generics.CreateAPIView):
     serializer_class = SubscriptionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         event_id = self.kwargs.get("event_id")
         event = generics.get_object_or_404(Event, pk=event_id)
 
         if Subscription.objects.filter(event=event, user=self.request.user).exists():
-            raise PermissionDenied("User already present", status.HTTP_400_BAD_REQUEST)
+            return response.Response(
+                "User already subscribed to this event.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as e:
+            return response.Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
+
+        if datetime.date(event.end_date) <= date.today():
+            return response.Response(
+                data="Can not create subscriptions for past events.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return response.Response(
+            serializer.data, status=status.HTTP_201_CREATED, headers=headers
+        )
+
+    def perform_create(self, serializer):
+        event_id = self.kwargs.get("event_id")
+        event = generics.get_object_or_404(Event, pk=event_id)
 
         serializer.save(event=event, user=self.request.user)
-
-    def pre_save(self, obj):
-        obj.event = self.kwargs.get("event_id")
-        obj.user = self.request.user
 
 
 class SubscriptionDestroyView(generics.DestroyAPIView):
@@ -124,9 +154,15 @@ class SubscriptionDestroyView(generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         subscription_id = self.kwargs.get("subscription_id")
         subscription = generics.get_object_or_404(Subscription, pk=subscription_id)
-
         if subscription.user != self.request.user:
-            raise PermissionDenied("Not allowd")
+            raise PermissionDenied("Not allowed")
+
+        event = generics.get_object_or_404(Event, pk=subscription.event.id)
+        if datetime.date(event.end_date) <= date.today():
+            return response.Response(
+                data="Can not unregister from subscriptions associated with past events.",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         subscription.delete()
         return response.Response(status=status.HTTP_204_NO_CONTENT)
