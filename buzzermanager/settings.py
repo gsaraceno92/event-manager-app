@@ -81,6 +81,29 @@ REST_FRAMEWORK = {
     ],
 }
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "level": "INFO",
+            "class": "logging.StreamHandler",
+        },
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "debug.log",
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file"],
+            "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "propagate": True,
+        },
+    },
+}
+
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 

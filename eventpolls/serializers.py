@@ -4,7 +4,7 @@ from .models import Event
 
 
 class EventSerializer(serializers.HyperlinkedModelSerializer):
-    owner = serializers.Field(source="owner.id")
+    owner = serializers.ReadOnlyField(source="owner.id")
 
     class Meta:
         model = Event

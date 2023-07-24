@@ -71,6 +71,9 @@ class EventsViewSet(viewsets.ModelViewSet):
     queryset = Event.objects.all().order_by("name")
     serializer_class = EventSerializer
 
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
     def pre_save(self, obj):
         obj.owner = self.request.user
 
