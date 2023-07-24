@@ -21,7 +21,7 @@ from rest_framework_simplejwt import views as jwt_views
 urlpatterns = [
     path("admin/", admin.site.urls),
     # Application urls
-    path("manager/", include("eventpolls.urls")),
+    path("manager/", include("eventpolls.urls", "buzzer")),
     path(
         "api/token/", jwt_views.TokenObtainPairView.as_view(), name="token_obtain_pair"
     ),

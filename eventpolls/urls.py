@@ -3,16 +3,26 @@ from rest_framework import routers
 
 from . import views
 
-router = routers.DefaultRouter()
-router.register(r"events", views.EventsViewSet)
-
+app_name = "eventpolls"
 
 apiurls = [
-    path("api/", include(router.urls)),
+    path("events-created/", views.EventListOwner.as_view(), name="event-list-owner"),
+    path("events/", views.EventList.as_view(), name="event-list"),
+    path("events/<int:event_id>/", views.EventDetail.as_view(), name="event-detail"),
+    path(
+        "events/<int:event_id>/subscription/",
+        views.SubscriptionCreateView.as_view(),
+        name="new-subscription",
+    ),
+    path(
+        "unsubscribe/<int:subscription_id>/",
+        views.SubscriptionDestroyView.as_view(),
+        name="remove-subscription",
+    ),
 ]
 
 urlpatterns = [
-    *apiurls,
+    path("api/", include(apiurls)),
     path("", views.index, name="index"),
     path("signup/", views.register_request, name="signup"),
     path("login/", views.login, name="login"),

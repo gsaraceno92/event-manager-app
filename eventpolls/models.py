@@ -13,7 +13,7 @@ class Event(models.Model):
         return self.name
 
 
-class Subscriptions(models.Model):
+class Subscription(models.Model):
     event = models.ForeignKey(
         Event, on_delete=models.CASCADE, unique=False, related_name="attendees"
     )

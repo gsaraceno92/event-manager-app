@@ -2,16 +2,15 @@ import django.contrib.auth as auth
 from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm  # add this
 from django.contrib.messages.storage import default_storage
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework import generics, permissions, response, status
 
 from .forms import NewUserForm
-from .models import Event
-from .serializers import EventSerializer
+from .models import Event, Subscription
+from .permissions import IsOwner, IsOwnerOrReadOnly
+from .serializers import EventSerializer, SubscriptionSerializer
 
 
 def index(request):
@@ -65,8 +64,17 @@ def logout(request):
     return redirect("index")
 
 
-class EventsViewSet(viewsets.ModelViewSet):
-    permission_classes = (IsAuthenticated,)
+class EventListOwner(generics.ListCreateAPIView):
+    permission_classes = (permissions.IsAuthenticated, IsOwner)
+
+    serializer_class = EventSerializer
+
+    def get_queryset(self):
+        return Event.objects.filter(owner=self.request.user)
+
+
+class EventList(generics.ListCreateAPIView):
+    permission_classes = (permissions.IsAuthenticated, IsOwnerOrReadOnly)
 
     queryset = Event.objects.all().order_by("name")
     serializer_class = EventSerializer
@@ -77,6 +85,48 @@ class EventsViewSet(viewsets.ModelViewSet):
     def pre_save(self, obj):
         obj.owner = self.request.user
 
-    def get(self, request):
-        content = {"message": "Hello, World!"}
-        return Response(content)
+
+class EventDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Event.objects.all()
+    serializer_class = EventSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwnerOrReadOnly]
+
+    def perform_update(self, serializer):
+        if self.request.user != serializer.instance.owner:
+            raise PermissionDenied("Object can not be updated by user.")
+        serializer.save()
+
+
+class SubscriptionCreateView(generics.CreateAPIView):
+    queryset = Subscription.objects.all()
+    serializer_class = SubscriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        event_id = self.kwargs.get("event_id")
+        event = generics.get_object_or_404(Event, pk=event_id)
+
+        if Subscription.objects.filter(event=event, user=self.request.user).exists():
+            raise PermissionDenied("User already present", status.HTTP_400_BAD_REQUEST)
+
+        serializer.save(event=event, user=self.request.user)
+
+    def pre_save(self, obj):
+        obj.event = self.kwargs.get("event_id")
+        obj.user = self.request.user
+
+
+class SubscriptionDestroyView(generics.DestroyAPIView):
+    queryset = Subscription.objects.all()
+    serializer_class = SubscriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def destroy(self, request, *args, **kwargs):
+        subscription_id = self.kwargs.get("subscription_id")
+        subscription = generics.get_object_or_404(Subscription, pk=subscription_id)
+
+        if subscription.user != self.request.user:
+            raise PermissionDenied("Not allowd")
+
+        subscription.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
